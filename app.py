@@ -749,39 +749,50 @@ if "Overview" in page:
         </div>""", unsafe_allow_html=True)
 
 # ═════════════════════════════════════════════════════════════════
-# PAGE 3 — KEPUTUSAN KREDIT
+# PAGE 3 — KEPUTUSAN KREDIT (MULTI-STEP UX)
 # ═════════════════════════════════════════════════════════════════
 elif "Keputusan" in page:
     st.title("🎯 Keputusan Kredit")
-    st.markdown("""<div class='info-bar'>
-    Halaman ini menampilkan <b>alur keputusan kredit secara lengkap</b> — baik untuk pengajuan
-    yang <b>disetujui</b> maupun <b>ditolak</b>. Setiap tahap dilengkapi visualisasi SHAP,
-    detail pembiayaan, langkah selanjutnya, dan narasi siap-pakai untuk nasabah maupun OJK.<br><br>
-    <b>Dua mode tersedia:</b> pilih dari dataset historis untuk eksplorasi cepat,
-    atau input manual untuk mensimulasikan nasabah baru.
-    </div>""", unsafe_allow_html=True)
+    st.markdown("""
+    <div class='info-bar'>
+    Halaman ini memandu Anda melalui proses penilaian kredit secara bertahap. 
+    Ikuti setiap langkah untuk mendapatkan rekomendasi AI yang akurat, adil, dan dapat dijelaskan.
+    </div>
+    """, unsafe_allow_html=True)
 
-    mode = st.radio("Sumber data:",
-        ["📂 Pilih dari dataset historis", "✏️ Input manual nasabah baru"],
-        horizontal=True)
+    # Default values initialization
+    _defs_m = {
+       "nama_m": "", "platform_m": "P2P Lending", "segmen_m": "Ojek online / driver",
+       "tanggungan_m": 1, "lama_plt_m": 8, "ontime_rt_m": 0.85,
+       "punya_rekening_m": False, "punya_bpjs_m": False, "punya_toko_m": False, "omzet_toko_m": 0,
+       "n_pinj_m": 0, "n_lancar_m": 0, "n_macet_m": 0, "avg_telat_m": 0,
+       "punya_ew_m": False, "ew_aktif_m": 0, "ew_trx_m": 0, "ew_spike_m": False,
+       "gig_inc_m": 0, "gig_kon_m": False, "gig_rat_m": 4.2, "gig_can_m": 5,
+       "listrik_m": 16, "listrik_pct_m": 66.7,
+       "jumlah_m": 3_000_000, "tenor_m": 6, "tujuan_m": "Modal usaha",
+       "show_result_m": False, "result_data_m": None, "ms_step": 1
+    }
+    for k, v in _defs_m.items():
+        if k not in st.session_state:
+            st.session_state[k] = v
+
+    mode = st.radio("Pilih Mode Penilaian:", 
+                    ["📝 Input Manual Nasabah Baru (Multi-Step)", "📂 Evaluasi dari Dataset Historis"],
+                    horizontal=True)
     st.markdown("---")
 
-    # ══════════════════════════════════════════════════════════════════
-    # MODE A — DATASET HISTORIS
-    # ══════════════════════════════════════════════════════════════════
-    if "Pilih" in mode:
+    if "Dataset Historis" in mode:
+        # ══════════════════════════════════════════════════════════════════
+        # MODE A — DATASET HISTORIS (Tetap dipertahankan)
+        # ══════════════════════════════════════════════════════════════════
         df_h = aj.merge(nsb[["nasabah_id", "segmen_pekerjaan", "kota", "usia"]],
                         on="nasabah_id", how="left")
 
         col_f1, col_f2, col_f3, col_f4 = st.columns(4)
-        with col_f1:
-            f_rek2 = st.selectbox("Keputusan", ["Semua", "Setujui", "Tolak"])
-        with col_f2:
-            f_kat2 = st.selectbox("Kategori risiko", ["Semua", "Rendah", "Menengah", "Tinggi"])
-        with col_f3:
-            f_seg2 = st.selectbox("Segmen", ["Semua"] + sorted(df_h["segmen_pekerjaan"].dropna().unique().tolist()))
-        with col_f4:
-            f_plt2 = st.selectbox("Platform tipe", ["Semua", "P2P Lending", "Multifinance"])
+        with col_f1: f_rek2 = st.selectbox("Keputusan", ["Semua", "Setujui", "Tolak"])
+        with col_f2: f_kat2 = st.selectbox("Kategori risiko", ["Semua", "Rendah", "Menengah", "Tinggi"])
+        with col_f3: f_seg2 = st.selectbox("Segmen", ["Semua"] + sorted(df_h["segmen_pekerjaan"].dropna().unique().tolist()))
+        with col_f4: f_plt2 = st.selectbox("Platform tipe", ["Semua", "P2P Lending", "Multifinance"])
 
         if f_rek2 != "Semua": df_h = df_h[df_h["rekomendasi"] == f_rek2]
         if f_kat2 != "Semua": df_h = df_h[df_h["kategori_risiko"] == f_kat2]
@@ -794,287 +805,217 @@ elif "Keputusan" in page:
 
         qa, qb, qc = st.columns(3)
         qa.metric("Hasil filter", f"{len(df_h):,} pengajuan")
-        qb.metric("Disetujui", f"{(df_h['rekomendasi']=='Setujui').sum():,}",
-                  f"{(df_h['rekomendasi']=='Setujui').mean():.0%}")
+        qb.metric("Disetujui", f"{(df_h['rekomendasi']=='Setujui').sum():,}", f"{(df_h['rekomendasi']=='Setujui').mean():.0%}")
         qc.metric("Skor rata-rata", f"{df_h['skor_ai'].mean():.0f}/100")
 
         st.markdown("---")
-        df_h["_label"] = (
-            df_h["pengajuan_id"] + " · " +
-            df_h["segmen_pekerjaan"].fillna("-") + " · " +
-            df_h["rekomendasi"] + " · skor " +
-            df_h["skor_ai"].astype(str) + " · " +
-            df_h["platform_tipe"]
-        )
-        selected = st.selectbox(
-            f"Pilih pengajuan untuk dilihat alur keputusannya ({min(len(df_h),500):,} ditampilkan):",
-            df_h["_label"].head(500).tolist()
-        )
+        df_h["_label"] = (df_h["pengajuan_id"] + " · " + df_h["segmen_pekerjaan"].fillna("-") + " · " +
+                          df_h["rekomendasi"] + " · skor " + df_h["skor_ai"].astype(str) + " · " + df_h["platform_tipe"])
+        
+        selected = st.selectbox("Pilih pengajuan untuk dilihat alur keputusannya:", df_h["_label"].head(500).tolist())
         row = df_h[df_h["_label"] == selected].iloc[0]
 
         def parse_factors(raw):
-            if pd.isna(raw) or str(raw).strip() in ("", "nan"):
-                return []
+            if pd.isna(raw) or str(raw).strip() in ("", "nan"): return []
             return [f.strip() for f in str(raw).split("|") if f.strip()]
 
         pos_list = parse_factors(row.get("faktor_positif", ""))
         neg_list = parse_factors(row.get("faktor_negatif", ""))
 
-        skor   = int(row["skor_ai"])
-        kat    = row["kategori_risiko"]
-        rek    = row["rekomendasi"]
-        prob   = float(row["prob_default"])
-        jumlah = float(row["jumlah_diajukan"])
-        tenor  = int(row["tenor_bln"])
-        platform = row["platform_tipe"]
-        segmen = str(row.get("segmen_pekerjaan", ""))
-        tujuan = str(row.get("tujuan", ""))
-        nama   = f"Nasabah {row['nasabah_id']}"
+        render_keputusan(int(row["skor_ai"]), row["kategori_risiko"], row["rekomendasi"], 
+                         float(row["prob_default"]), pos_list, neg_list,
+                         f"Nasabah {row['nasabah_id']}", str(row.get("segmen_pekerjaan", "")), 
+                         row["platform_tipe"], str(row.get("tujuan", "")), 
+                         float(row["jumlah_diajukan"]), int(row["tenor_bln"]))
 
-        st.markdown("---")
-        render_keputusan(skor, kat, rek, prob, pos_list, neg_list,
-                         nama, segmen, platform, tujuan, jumlah, tenor)
-
-    # ══════════════════════════════════════════════════════════════════
-    # MODE B — INPUT MANUAL (IMPROVED UX & LIVE PREVIEW)
-    # ══════════════════════════════════════════════════════════════════
     else:
-        # ── Inisialisasi Session State untuk Mode B ─────────────────
-        _defs_m = {
-            "nama_m": "", "platform_m": "P2P Lending", "segmen_m": "Ojek online / driver",
-            "tanggungan_m": 1, "lama_plt_m": 8, "ontime_rt_m": 0.85,
-            "punya_rekening_m": False, "punya_bpjs_m": False, "punya_toko_m": False, "omzet_toko_m": 0,
-            "n_pinj_m": 0, "n_lancar_m": 0, "n_macet_m": 0, "avg_telat_m": 0,
-            "punya_ew_m": False, "ew_aktif_m": 0, "ew_trx_m": 0, "ew_spike_m": False,
-            "gig_inc_m": 0, "gig_kon_m": False, "gig_rat_m": 4.2, "gig_can_m": 5,
-            "listrik_m": 16, "listrik_pct_m": 66.7,
-            "jumlah_m": 3_000_000, "tenor_m": 6, "tujuan_m": "Modal usaha",
-            "show_result_m": False, "result_data_m": None
-        }
-        for k, v in _defs_m.items():
-            if k not in st.session_state:
-                st.session_state[k] = v
-                
-        s_m = st.session_state
-
-        # ── Quick Presets ───────────────────────────────────────────
-        st.markdown('<div class="sec">⚡ Quick Preset (Simulasi Cepat)</div>', unsafe_allow_html=True)
-        c_p1, c_p2, c_p3 = st.columns(3)
-        with c_p1:
-            if st.button("🟢 Load Profil Nasabah Prima", use_container_width=True):
-                s_m.update({
-                    "nama_m": "Budi Santoso", "segmen_m": "Pemilik UMKM kecil", "platform_m": "P2P Lending",
-                    "ontime_rt_m": 0.95, "n_macet_m": 0, "n_lancar_m": 3, "n_pinj_m": 3, "listrik_m": 22,
-                    "punya_rekening_m": True, "punya_bpjs_m": True, "punya_toko_m": True, "omzet_toko_m": 5_000_000,
-                    "ew_aktif_m": 15, "ew_trx_m": 25, "avg_telat_m": 0, "show_result_m": False
-                })
-                st.rerun()
-        with c_p2:
-            if st.button("🔴 Load Profil Berisiko", use_container_width=True):
-                s_m.update({
-                    "nama_m": "Siti Aminah", "segmen_m": "Ojek online / driver", "platform_m": "P2P Lending",
-                    "ontime_rt_m": 0.60, "n_macet_m": 2, "n_lancar_m": 1, "n_pinj_m": 3, "listrik_m": 10,
-                    "punya_rekening_m": False, "punya_toko_m": False, "ew_aktif_m": 2, "ew_trx_m": 5,
-                    "ew_spike_m": True, "gig_can_m": 15, "avg_telat_m": 45, "show_result_m": False
-                })
-                st.rerun()
-        with c_p3:
-            if st.button("🔄 Reset Form", use_container_width=True):
-                for k in _defs_m:
-                    s_m[k] = _defs_m[k]
-                st.rerun()
-
-        st.markdown("---")
-
-        # ── Derived Values ──────────────────────────────────────────
-        is_gig_m = s_m["segmen_m"] in ["Ojek online / driver", "Kurir / ekspedisi", "Freelancer digital"]
-        s_m["listrik_pct_m"] = round(s_m["listrik_m"] / 24 * 100, 1)
-
-        # ── Live Score Calculation (Real-time) ──────────────────────
-        live_skor_m, live_pos_m, live_neg_m = hitung_skor_live(
-            s_m["lama_plt_m"], s_m["ontime_rt_m"], s_m["n_lancar_m"], s_m["n_pinj_m"], s_m["n_macet_m"],
-            s_m["listrik_pct_m"], s_m["ew_aktif_m"], s_m["ew_trx_m"], is_gig_m, s_m["gig_kon_m"],
-            s_m["gig_rat_m"], s_m["gig_can_m"], s_m["punya_rekening_m"], s_m["punya_bpjs_m"],
-            s_m["punya_toko_m"], s_m["omzet_toko_m"], s_m["tanggungan_m"], s_m["ew_spike_m"], s_m["avg_telat_m"]
-        )
+        # ══════════════════════════════════════════════════════════════════
+        # MODE B — INPUT MANUAL (MULTI-STEP WIZARD)
+        # ══════════════════════════════════════════════════════════════════
         
-        live_kat_m = "Rendah" if live_skor_m >= 70 else "Menengah" if live_skor_m >= 50 else "Tinggi"
-        live_col_m = "#38A169" if live_skor_m >= 70 else "#D69E2E" if live_skor_m >= 50 else "#E53E3E"
-        live_ico_m = "✅" if live_skor_m >= 70 else "⚠️" if live_skor_m >= 50 else "❌"
+        # Custom CSS for Stepper
+        st.markdown("""
+        <style>
+        .step-box { padding: 12px; border-radius: 8px; text-align: center; transition: all 0.3s ease; font-size: 14px; }
+        .step-active { background: #EBF8FF; color: #2C5282; border: 2px solid #3182CE; font-weight: 600; }
+        .step-done { background: #F0FFF4; color: #276749; border: 1px solid #38A169; }
+        .step-pending { background: #F7FAFC; color: #A0AEC0; border: 1px solid #E2E8F0; }
+        </style>
+        """, unsafe_allow_html=True)
 
-        # ── Layout: Form Kiri, Live Preview Kanan ───────────────────
-        col_form, col_live = st.columns([2, 1], gap="large")
+        # Render Stepper UI
+        steps_info = [("1️⃣", "Profil Nasabah"), ("2️⃣", "Riwayat Kredit"), ("3️⃣", "Sinyal Digital"), ("4️⃣", "Pengajuan & Hasil")]
+        cols = st.columns(4)
+        for i, col in enumerate(cols):
+            step_num = i + 1
+            icon, label = steps_info[i]
+            if step_num < st.session_state.ms_step:
+                col.markdown(f"<div class='step-box step-done'><b>{icon} {label}</b><br><small>✅ Selesai</small></div>", unsafe_allow_html=True)
+            elif step_num == st.session_state.ms_step:
+                col.markdown(f"<div class='step-box step-active'><b>{icon} {label}</b><br><small>🔵 Sedang diisi</small></div>", unsafe_allow_html=True)
+            else:
+                col.markdown(f"<div class='step-box step-pending'><b>{icon} {label}</b><br><small>⚪ Belum</small></div>", unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        s_m = st.session_state
+        is_gig_m = s_m["segmen_m"] in ["Ojek online / driver", "Kurir / ekspedisi", "Freelancer digital"]
 
-        # ══════════════════════════════════════════════════════════════
-        # KOLOM KANAN: LIVE PREVIEW
-        # ══════════════════════════════════════════════════════════════
-        with col_live:
-            st.markdown(f"""
-            <div class='live-card'>
-                <div style='font-size:11px;color:#718096;font-weight:600;letter-spacing:.06em;text-transform:uppercase;margin-bottom:.5rem'>
-                    📊 Estimasi Skor Real-Time
-                </div>
-                <div class='live-skor' style='color:{live_col_m}'>{live_skor_m}</div>
-                <div style='text-align:center;font-size:13px;color:{live_col_m};font-weight:600;margin-bottom:.4rem'>
-                    {live_ico_m} Risiko {live_kat_m}
-                </div>
-                <div class='live-bar-wrap'>
-                    <div class='live-bar-fill' style='width:{live_skor_m}%;background:{live_col_m}'></div>
-                </div>
-                <div style='display:flex;justify-content:space-between;font-size:10px;color:#A0AEC0;margin-top:3px'>
-                    <span>Tolak &lt;50</span> <span>Ragu 50-69</span> <span>Setujui ≥70</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-
-            if live_pos_m:
-                st.markdown(f"<div style='font-size:11px;font-weight:600;color:#276749;margin:.75rem 0 .35rem'>✅ Faktor Positif ({len(live_pos_m)})</div>", unsafe_allow_html=True)
-                for f in live_pos_m[:4]:
-                    st.markdown(f"<div class='mini-factor mini-pos'>{f}</div>", unsafe_allow_html=True)
+        # ── STEP 1: Profil Nasabah ──
+        if st.session_state.ms_step == 1:
+            st.markdown("### 👤 Langkah 1: Profil Nasabah")
+            st.caption("Masukkan data dasar dan profil pekerjaan nasabah.")
             
-            if live_neg_m:
-                st.markdown(f"<div style='font-size:11px;font-weight:600;color:#742A2A;margin:.75rem 0 .35rem'>❌ Faktor Risiko ({len(live_neg_m)})</div>", unsafe_allow_html=True)
-                for f in live_neg_m[:4]:
-                    st.markdown(f"<div class='mini-factor mini-neg'>{f}</div>", unsafe_allow_html=True)
-
-            if live_skor_m < 50:
-                st.markdown(f"""
-                <div class='preview-tip-warn' style='margin-top:.75rem'>
-                    ⚠️ Butuh <b>{50 - live_skor_m}</b> poin lagi untuk disetujui.
-                </div>""", unsafe_allow_html=True)
-
-        # ══════════════════════════════════════════════════════════════
-        # KOLOM KIRI: FORM INPUT (DINAMIS TANPA st.form)
-        # ══════════════════════════════════════════════════════════════
-        with col_form:
-            st.markdown('<div class="sec">👤 Profil & Riwayat Kredit</div>', unsafe_allow_html=True)
+            s_m["nama_m"] = st.text_input("Nama Lengkap Nasabah", value=s_m["nama_m"], placeholder="Contoh: Budi Santoso")
             
             c1, c2 = st.columns(2)
             with c1:
-                s_m["nama_m"] = st.text_input("Nama Nasabah", value=s_m["nama_m"], placeholder="Contoh: Budi Santoso")
-                s_m["segmen_m"] = st.selectbox("Segmen Pekerjaan", [
-                    "Ojek online / driver", "Pedagang pasar / warung", "Buruh pabrik", 
-                    "Kurir / ekspedisi", "Freelancer digital", "Petani / nelayan", 
-                    "Karyawan kontrak", "Penjahit / konveksi", "Pemilik UMKM kecil"
-                ], index=[
-                    "Ojek online / driver", "Pedagang pasar / warung", "Buruh pabrik", 
-                    "Kurir / ekspedisi", "Freelancer digital", "Petani / nelayan", 
-                    "Karyawan kontrak", "Penjahit / konveksi", "Pemilik UMKM kecil"
-                ].index(s_m["segmen_m"]))
+                segmen_list = ["Ojek online / driver", "Pedagang pasar / warung", "Buruh pabrik", "Kurir / ekspedisi", 
+                               "Freelancer digital", "Petani / nelayan", "Karyawan kontrak", "Penjahit / konveksi", "Pemilik UMKM kecil"]
+                s_m["segmen_m"] = st.selectbox("Segmen Pekerjaan", segmen_list, index=segmen_list.index(s_m["segmen_m"]))
             with c2:
-                s_m["platform_m"] = st.selectbox("Platform", ["P2P Lending", "Multifinance"],
-                                                 index=["P2P Lending", "Multifinance"].index(s_m["platform_m"]))
-                s_m["tanggungan_m"] = st.slider("Jumlah Tanggungan", 0, 6, value=s_m["tanggungan_m"])
+                plt_list = ["P2P Lending", "Multifinance"]
+                s_m["platform_m"] = st.selectbox("Jenis Platform Pinjaman", plt_list, index=plt_list.index(s_m["platform_m"]))
+            
+            s_m["tanggungan_m"] = st.slider("Jumlah Tanggungan Keluarga (Anak/Orang Tua yang ditanggung)", 0, 6, value=s_m["tanggungan_m"])
 
-            c1, c2, c3 = st.columns(3)
+        # ── STEP 2: Riwayat Kredit ──
+        elif st.session_state.ms_step == 2:
+            st.markdown("### 🏦 Langkah 2: Riwayat Kredit & Perilaku Bayar")
+            st.caption("Data ini membantu kami memahami disiplin keuangan nasabah.")
+            
+            c1, c2 = st.columns(2)
             with c1:
-                s_m["lama_plt_m"] = st.slider("Lama di platform (bln)", 0, 48, value=s_m["lama_plt_m"])
+                s_m["lama_plt_m"] = st.slider("Berapa lama menjadi nasabah di platform ini? (Bulan)", 0, 48, value=s_m["lama_plt_m"])
+                ontime_pct = st.slider("Seberapa sering membayar tepat waktu? (%)", 0, 100, value=int(s_m["ontime_rt_m"]*100))
+                s_m["ontime_rt_m"] = ontime_pct / 100.0
+                s_m["avg_telat_m"] = st.slider("Rata-rata keterlambatan pembayaran (Hari)", 0, 180, value=s_m["avg_telat_m"])
             with c2:
-                s_m["ontime_rt_m"] = st.slider("On-time rate", 0.0, 1.0, value=s_m["ontime_rt_m"], step=0.01, format="%.2f")
-            with c3:
-                s_m["avg_telat_m"] = st.slider("Rata-rata hari telat", 0, 180, value=s_m["avg_telat_m"])
-
-            c1, c2, c3, c4 = st.columns(4)
-            with c1: s_m["n_pinj_m"] = st.number_input("Total pinjaman", 0, 20, value=s_m["n_pinj_m"])
-            with c2: s_m["n_lancar_m"] = st.number_input("Lancar", 0, 20, value=s_m["n_lancar_m"])
-            with c3: s_m["n_macet_m"] = st.number_input("Macet", 0, 20, value=s_m["n_macet_m"])
-            with c4: 
-                s_m["punya_rekening_m"] = st.checkbox("Punya rekening", value=s_m["punya_rekening_m"])
-                s_m["punya_bpjs_m"] = st.checkbox("BPJS rutin", value=s_m["punya_bpjs_m"])
-
-            # ── Conditional: Gig Economy ────────────────────────────
-            if is_gig_m:
-                st.markdown('<div class="info-bar">🛵 <b>Mode Gig Worker Aktif</b> — Data rating & cancel rate akan dihitung.</div>', unsafe_allow_html=True)
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    s_m["gig_inc_m"] = st.number_input("Income gig/bln (Rp)", 0, 20_000_000, value=s_m["gig_inc_m"], step=500_000)
-                with c2:
-                    s_m["gig_kon_m"] = st.checkbox("Income konsisten 6 bln", value=s_m["gig_kon_m"])
-                    s_m["gig_rat_m"] = st.slider("Rating gig", 1.0, 5.0, value=s_m["gig_rat_m"], step=0.1)
-                with c3:
-                    s_m["gig_can_m"] = st.slider("Cancel rate (%)", 0, 30, value=s_m["gig_can_m"])
-
-            # ── Conditional: Toko Online ────────────────────────────
+                s_m["n_pinj_m"] = st.number_input("Total pinjaman yang pernah diambil", 0, 20, value=s_m["n_pinj_m"])
+                s_m["n_lancar_m"] = st.number_input("Jumlah pinjaman yang dilunasi dengan lancar", 0, 20, value=s_m["n_lancar_m"])
+                s_m["n_macet_m"] = st.number_input("Jumlah pinjaman yang macet/gagal bayar", 0, 20, value=s_m["n_macet_m"])
+                
             st.markdown("---")
-            s_m["punya_toko_m"] = st.checkbox("✓ Punya toko online (Marketplace)", value=s_m["punya_toko_m"])
-            if s_m["punya_toko_m"]:
-                s_m["omzet_toko_m"] = st.number_input("Omzet toko/bln (Rp)", 0, 100_000_000, 
-                                                      value=s_m["omzet_toko_m"], step=500_000,
-                                                      help="Omzet >Rp 3 jt akan menambah +5 poin")
-
-            # ── Sinyal Digital ──────────────────────────────────────
-            st.markdown('<div class="sec">📱 Sinyal Digital</div>', unsafe_allow_html=True)
+            st.markdown("**Kepemilikan Akun Resmi**")
             c1, c2 = st.columns(2)
-            with c1:
-                s_m["punya_ew_m"] = st.checkbox("Punya e-wallet aktif", value=s_m["punya_ew_m"])
-                if s_m["punya_ew_m"]:
-                    s_m["ew_aktif_m"] = st.slider("E-wallet aktif (bln)", 0, 24, value=s_m["ew_aktif_m"])
-                    s_m["ew_trx_m"] = st.slider("Transaksi e-wallet/bln", 0, 100, value=s_m["ew_trx_m"])
-                    s_m["ew_spike_m"] = st.checkbox("⚠️ Spike top-up sebelum pengajuan", value=s_m["ew_spike_m"])
-                else:
-                    s_m["ew_aktif_m"] = 0; s_m["ew_trx_m"] = 0; s_m["ew_spike_m"] = False
-                    
-            with c2:
-                s_m["listrik_m"] = st.slider("Bulan listrik tepat waktu (dari 24)", 0, 24, value=s_m["listrik_m"])
-                st.caption(f"Konsistensi listrik: <b>{s_m['listrik_pct_m']}%</b>", unsafe_allow_html=True)
+            with c1: s_m["punya_rekening_m"] = st.checkbox("✅ Memiliki rekening bank aktif", value=s_m["punya_rekening_m"])
+            with c2: s_m["punya_bpjs_m"] = st.checkbox("✅ Rutin membayar BPJS Kesehatan/Ketenagakerjaan", value=s_m["punya_bpjs_m"])
 
-            # ── Detail Pengajuan ────────────────────────────────────
-            st.markdown('<div class="sec">💰 Detail Pengajuan</div>', unsafe_allow_html=True)
-            c1, c2, c3 = st.columns(3)
+        # ── STEP 3: Sinyal Digital ──
+        elif st.session_state.ms_step == 3:
+            st.markdown("### 📱 Langkah 3: Sinyal Digital & Sumber Pendapatan")
+            st.caption("Data alternatif untuk menilai kelayakan bagi nasabah thin-file.")
+            
+            st.markdown("**💳 Kebiasaan Menggunakan E-Wallet (GoPay/OVO/Dana/dll)**")
+            s_m["punya_ew_m"] = st.checkbox("Menggunakan E-Wallet secara rutin", value=s_m["punya_ew_m"])
+            if s_m["punya_ew_m"]:
+                c1, c2, c3 = st.columns(3)
+                with c1: s_m["ew_aktif_m"] = st.slider("Sudah berapa lama menggunakan? (Bulan)", 0, 24, value=s_m["ew_aktif_m"])
+                with c2: s_m["ew_trx_m"] = st.slider("Rata-rata transaksi per bulan", 0, 100, value=s_m["ew_trx_m"])
+                with c3: s_m["ew_spike_m"] = st.checkbox("⚠️ Ada lonjakan top-up tidak wajar bulan ini?", value=s_m["ew_spike_m"])
+            
+            st.markdown("---")
+            st.markdown("**💡 Konsistensi Tagihan Listrik**")
+            s_m["listrik_m"] = st.slider("Dari 24 bulan terakhir, berapa kali bayar listrik tepat waktu?", 0, 24, value=s_m["listrik_m"])
+            s_m["listrik_pct_m"] = round(s_m["listrik_m"] / 24 * 100, 1)
+            st.caption(f"Konsistensi pembayaran listrik: **{s_m['listrik_pct_m']}%**")
+            
+            st.markdown("---")
+            if is_gig_m:
+                st.markdown("**🛵 Data Pekerja Gig (Ojol/Kurir/Freelance)**")
+                c1, c2 = st.columns(2)
+                with c1:
+                    s_m["gig_inc_m"] = st.number_input("Pendapatan rata-rata per bulan (Rp)", 0, 20_000_000, value=s_m["gig_inc_m"], step=500_000, format="%d")
+                    s_m["gig_kon_m"] = st.checkbox("Pendapatan konsisten selama 6 bulan terakhir", value=s_m["gig_kon_m"])
+                with c2:
+                    s_m["gig_rat_m"] = st.slider("Rating di aplikasi (1.0 - 5.0)", 1.0, 5.0, value=s_m["gig_rat_m"], step=0.1)
+                    s_m["gig_can_m"] = st.slider("Persentase pesanan yang dibatalkan (Cancel rate) (%)", 0, 30, value=s_m["gig_can_m"])
+            else:
+                s_m["gig_inc_m"] = 0; s_m["gig_kon_m"] = False; s_m["gig_rat_m"] = 4.2; s_m["gig_can_m"] = 0
+
+            st.markdown("---")
+            st.markdown("**🏪 Usaha Toko Online (Marketplace)**")
+            s_m["punya_toko_m"] = st.checkbox("Memiliki toko online aktif di Marketplace", value=s_m["punya_toko_m"])
+            if s_m["punya_toko_m"]:
+                s_m["omzet_toko_m"] = st.number_input("Omzet rata-rata per bulan (Rp)", 0, 100_000_000, value=s_m["omzet_toko_m"], step=500_000, format="%d")
+            else:
+                s_m["omzet_toko_m"] = 0
+
+        # ── STEP 4: Detail Pengajuan & Hasil ──
+        elif st.session_state.ms_step == 4:
+            st.markdown("### 💰 Langkah 4: Detail Pengajuan & Keputusan AI")
+            st.caption("Tentukan nominal pinjaman dan lihat rekomendasi sistem secara real-time.")
+            
+            c1, c2 = st.columns([2, 1])
             with c1:
                 if s_m["platform_m"] == "P2P Lending":
-                    s_m["jumlah_m"] = st.number_input("Jumlah (Rp)", 500_000, 50_000_000, value=s_m["jumlah_m"], step=500_000)
-                    s_m["tenor_m"] = st.selectbox("Tenor (bln)", [1, 3, 6, 9, 12], index=[1, 3, 6, 9, 12].index(s_m["tenor_m"]))
-                    s_m["tujuan_m"] = st.selectbox("Tujuan", ["Modal usaha", "Konsumsi", "Pendidikan", "Renovasi"], 
-                                                   index=["Modal usaha", "Konsumsi", "Pendidikan", "Renovasi"].index(s_m["tujuan_m"]))
+                    s_m["jumlah_m"] = st.number_input("Jumlah Pinjaman yang Diajukan (Rp)", 500_000, 50_000_000, value=s_m["jumlah_m"], step=500_000, format="%d")
+                    s_m["tenor_m"] = st.selectbox("Tenor / Jangka Waktu (Bulan)", [1, 3, 6, 9, 12], index=[1, 3, 6, 9, 12].index(s_m["tenor_m"]))
+                    s_m["tujuan_m"] = st.selectbox("Tujuan Penggunaan Dana", ["Modal usaha", "Konsumsi", "Pendidikan", "Renovasi"], index=["Modal usaha", "Konsumsi", "Pendidikan", "Renovasi"].index(s_m["tujuan_m"]))
                 else:
-                    s_m["jumlah_m"] = st.number_input("Jumlah (Rp)", 3_000_000, 200_000_000, value=s_m["jumlah_m"], step=1_000_000)
-                    s_m["tenor_m"] = st.selectbox("Tenor (bln)", [12, 18, 24, 36, 48], index=[12, 18, 24, 36, 48].index(s_m["tenor_m"]))
-                    s_m["tujuan_m"] = st.selectbox("Tujuan", ["Motor baru", "Motor bekas", "Elektronik", "Mesin usaha"], 
-                                                   index=["Motor baru", "Motor bekas", "Elektronik", "Mesin usaha"].index(s_m["tujuan_m"]))
+                    s_m["jumlah_m"] = st.number_input("Jumlah Pinjaman yang Diajukan (Rp)", 3_000_000, 200_000_000, value=s_m["jumlah_m"], step=1_000_000, format="%d")
+                    s_m["tenor_m"] = st.selectbox("Tenor / Jangka Waktu (Bulan)", [12, 18, 24, 36, 48], index=[12, 18, 24, 36, 48].index(s_m["tenor_m"]))
+                    s_m["tujuan_m"] = st.selectbox("Tujuan Penggunaan Dana", ["Motor baru", "Motor bekas", "Elektronik", "Mesin usaha"], index=["Motor baru", "Motor bekas", "Elektronik", "Mesin usaha"].index(s_m["tujuan_m"]))
+            
             with c2:
-                st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
                 bunga_est = 2.0 if s_m["platform_m"] == "P2P Lending" else 1.5
                 angsuran = round(s_m["jumlah_m"] * (1 + bunga_est/100 * s_m["tenor_m"]) / s_m["tenor_m"])
                 st.markdown(f"""
-                <div style='background:#F7FAFC;border-radius:8px;padding:.75rem;border:1px solid #E2E8F0'>
-                    <div style='font-size:11px;color:#718096'>Estimasi angsuran</div>
-                    <div style='font-size:20px;font-weight:700;color:#3182CE'>Rp {angsuran:,.0f} <span style='font-size:12px;color:#718096'>/bulan</span></div>
+                <div style='background:#F7FAFC;border-radius:8px;padding:1rem;border:1px solid #E2E8F0; height: 100%; display: flex; flex-direction: column; justify-content: center;'>
+                    <div style='font-size:12px;color:#718096'>Estimasi Angsuran</div>
+                    <div style='font-size:22px;font-weight:700;color:#3182CE'>Rp {angsuran:,.0f} <span style='font-size:12px;color:#718096'>/bulan</span></div>
                     <div style='font-size:11px;color:#718096'>Bunga {bunga_est}% · Tenor {s_m['tenor_m']} bln</div>
-                </div>""", unsafe_allow_html=True)
-            with c3:
-                st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
-                if st.button("🎯 Generate Keputusan & Narasi", use_container_width=True, type="primary"):
-                    final_skor_m, final_pos_m, final_neg_m = hitung_skor(
-                        s_m["lama_plt_m"], s_m["ontime_rt_m"], s_m["n_lancar_m"], s_m["n_pinj_m"], s_m["n_macet_m"],
-                        s_m["listrik_pct_m"], s_m["ew_aktif_m"], s_m["ew_trx_m"], is_gig_m, s_m["gig_kon_m"],
-                        s_m["gig_rat_m"], s_m["gig_can_m"], s_m["punya_rekening_m"], s_m["punya_bpjs_m"],
-                        s_m["punya_toko_m"], s_m["omzet_toko_m"], s_m["tanggungan_m"], s_m["ew_spike_m"], s_m["avg_telat_m"]
-                    )
-                    
-                    kat_m = "Rendah" if final_skor_m >= 70 else "Menengah" if final_skor_m >= 50 else "Tinggi"
-                    rek_m = "Setujui" if final_skor_m >= 50 else "Tolak"
-                    prob_m = max(0.02, min(0.88, (100 - final_skor_m) / 100 * 0.58))
-                    
-                    s_m["result_data_m"] = {
-                        "skor": final_skor_m, "kat": kat_m, "rek": rek_m, "prob": prob_m,
-                        "pos": final_pos_m, "neg": final_neg_m,
-                        "nama": s_m["nama_m"] or "Nasabah", "segmen": s_m["segmen_m"],
-                        "platform": s_m["platform_m"], "tujuan": s_m["tujuan_m"],
-                        "jumlah": s_m["jumlah_m"], "tenor": s_m["tenor_m"]
-                    }
-                    s_m["show_result_m"] = True
-                    st.rerun()
-
-        # ══════════════════════════════════════════════════════════════
-        # RENDER HASIL KEPUTUSAN (DITAMPILKAN DI BAWAH FORM)
-        # ══════════════════════════════════════════════════════════════
-        if s_m["show_result_m"] and s_m["result_data_m"]:
-            st.markdown("---")
-            r = s_m["result_data_m"]
-            render_keputusan(r["skor"], r["kat"], r["rek"], r["prob"], r["pos"], r["neg"],
-                             r["nama"], r["segmen"], r["platform"], r["tujuan"], r["jumlah"], r["tenor"])
+                </div>
+                """, unsafe_allow_html=True)
             
+            st.markdown("---")
+            if st.button("🎯 Hitung & Tampilkan Keputusan AI", use_container_width=True, type="primary"):
+                final_skor_m, final_pos_m, final_neg_m = hitung_skor(
+                    s_m["lama_plt_m"], s_m["ontime_rt_m"], s_m["n_lancar_m"], s_m["n_pinj_m"], s_m["n_macet_m"],
+                    s_m["listrik_pct_m"], s_m["ew_aktif_m"], s_m["ew_trx_m"], is_gig_m, s_m["gig_kon_m"],
+                    s_m["gig_rat_m"], s_m["gig_can_m"], s_m["punya_rekening_m"], s_m["punya_bpjs_m"],
+                    s_m["punya_toko_m"], s_m["omzet_toko_m"], s_m["tanggungan_m"], s_m["ew_spike_m"], s_m["avg_telat_m"]
+                )
+                
+                kat_m = "Rendah" if final_skor_m >= 70 else "Menengah" if final_skor_m >= 50 else "Tinggi"
+                rek_m = "Setujui" if final_skor_m >= 50 else "Tolak"
+                prob_m = max(0.02, min(0.88, (100 - final_skor_m) / 100 * 0.58))
+                
+                s_m["result_data_m"] = {
+                     "skor": final_skor_m, "kat": kat_m, "rek": rek_m, "prob": prob_m,
+                     "pos": final_pos_m, "neg": final_neg_m,
+                     "nama": s_m["nama_m"] or "Nasabah", "segmen": s_m["segmen_m"],
+                     "platform": s_m["platform_m"], "tujuan": s_m["tujuan_m"],
+                     "jumlah": s_m["jumlah_m"], "tenor": s_m["tenor_m"]
+                }
+                s_m["show_result_m"] = True
+
+            if s_m["show_result_m"] and s_m["result_data_m"]:
+                r = s_m["result_data_m"]
+                render_keputusan(r["skor"], r["kat"], r["rek"], r["prob"], r["pos"], r["neg"],
+                                 r["nama"], r["segmen"], r["platform"], r["tujuan"], r["jumlah"], r["tenor"])
+
+        # ── NAVIGATION BUTTONS ──
+        st.markdown("---")
+        col_prev, col_next, col_reset = st.columns([1, 1, 1])
+        
+        with col_prev:
+            if st.session_state.ms_step > 1:
+                if st.button("⬅️ Sebelumnya", use_container_width=True):
+                    st.session_state.ms_step -= 1
+                    st.rerun()
+                    
+        with col_next:
+            if st.session_state.ms_step < 4:
+                if st.button("Selanjutnya ➡️", type="primary", use_container_width=True):
+                    st.session_state.ms_step += 1
+                    st.rerun()
+                    
+        with col_reset:
+            if st.button("🔄 Reset Form", use_container_width=True):
+                for k, v in _defs_m.items():
+                    st.session_state[k] = v
+                st.rerun()   
 # ════════════════════════════════════════════════════════════════════════
 # PAGE 4 — MONITOR PENGAJUAN
 # ════════════════════════════════════════════════════════════════════════
