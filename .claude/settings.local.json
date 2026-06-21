@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(run)",
+      "PowerShell(cd \"C:\\\\Users\\\\Admin\\\\Desktop\\\\IEKA_FinalProject\"; Start-Process powershell -ArgumentList '-NoProfile -Command \"streamlit run app.py\"' -WindowStyle Normal)",
+      "PowerShell(Start-Sleep -Seconds 5; try { $r = Invoke-WebRequest -Uri \"http://localhost:8501\" -TimeoutSec 5 -UseBasicParsing; \"HTTP $\\($r.StatusCode\\)\" } catch { $_.Exception.Message })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"http://localhost:8501\" -TimeoutSec 3 -UseBasicParsing; \"Already running: HTTP $\\($r.StatusCode\\)\" } catch { \"Not running\" })",
+      "PowerShell(Start-Sleep -Seconds 6; try { $r = Invoke-WebRequest -Uri \"http://localhost:8501\" -TimeoutSec 5 -UseBasicParsing; \"HTTP $\\($r.StatusCode\\) — app is up\" } catch { \"Still starting or failed: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(Start-Sleep -Seconds 6; try { $r = Invoke-WebRequest -Uri \"http://localhost:8501\" -TimeoutSec 5 -UseBasicParsing; \"HTTP $\\($r.StatusCode\\) — app is up\" } catch { \"Still not up: $\\($_.Exception.Message\\)\" })",
+      "PowerShell(python -m streamlit --version 2>&1; python -c \"import sys; print\\(sys.executable\\)\")",
+      "PowerShell(Start-Sleep -Seconds 8; try { $r = Invoke-WebRequest -Uri \"http://localhost:8501\" -TimeoutSec 5 -UseBasicParsing; \"HTTP $\\($r.StatusCode\\) — app is up\" } catch { \"Not yet: $\\($_.Exception.Message\\)\" })"
+    ]
+  }
+}
